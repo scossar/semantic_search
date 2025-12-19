@@ -1,5 +1,5 @@
 from typing import Any, Dict, List
-import re
+# import re
 
 __all__ = ["extract_sections"]
 
@@ -8,13 +8,21 @@ def extract_text_from_node(node: Dict[str, Any]) -> str:
     if node["type"] == "text":
         return node["raw"]
 
+    if node["type"] == "image":
+        # TODO: look into this
+        return extract_text(node["children"])
+
+    if node["type"] == "block_math" or node["type"] == "inline_math":
+        return node.get("raw", "")
+
     # this will remove the footnotes section, as long as it's properly structured
     # TODO: check how brittle this is
     if node["type"] == "footnote_item":
         return ""
 
     if node["type"] == "block_code":
-        lang = node["attrs"].get("info", "")
+        # note that "attrs" is not set for "style": "indent" code blocks
+        lang = node.get("attrs", {}).get("info", "")
         code = node["raw"]
         if lang:
             return f"\n\nCode ({lang}):\n{code}\n\n"
@@ -55,15 +63,6 @@ def extract_text(nodes: List[Dict[str, Any]]) -> str:
     return "".join(extract_text_from_node(node) for node in nodes)
 
 
-def clean_text(text: str) -> str:
-    # remove footnote references:
-    text = re.sub(r"\[\^\d+\]", "", text)
-    return text
-
-
-# Possible improvements:
-# - add sliding window
-# - check content length and handle short/long content
 def extract_sections(
     ast: List[Dict[str, Any]], headings: List[str] = []
 ) -> List[Dict[str, str]]:
@@ -72,7 +71,7 @@ def extract_sections(
 
     for node in ast:
         if node["type"] == "heading":
-            #  append previouw section to sections
+            #  append previous section to sections
             if current_section["content"]:
                 sections.append(current_section)
 
@@ -85,7 +84,6 @@ def extract_sections(
 
         else:
             text = extract_text_from_node(node)
-            text = clean_text(text)
             if text.strip():
                 current_section["content"].append(text)
 
