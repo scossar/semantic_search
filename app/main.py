@@ -1,9 +1,26 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import chromadb
+import asyncio
 from pydantic import BaseModel
+import os
 
 app = FastAPI()
+
+collection_name = "zalgorithm"
+
+chroma_host = os.getenv("CHROMA_HOST", "localhost")
+chroma_port = os.getenv("CHROMA_PORT", "8000")
+chroma_client = chromadb.HttpClient(host=chroma_host, port=int(chroma_port))
+collection = chroma_client.get_collection(name=collection_name)
+
+collection.add(
+    ids=["id1", "id2"],
+    documents=[
+        "This is a document about pineapple",
+        "This is a document about oranges",
+    ],
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,4 +38,9 @@ class SearchQuery(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"status": "Semantic search API is running"}
+    print("in the get method")
+    try:
+        collections = chroma_client.list_collections()
+        return {"collections": [col.name for col in collections]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -1,4 +1,5 @@
 .blogenv/
 __pycache__/
-chroma_data/
+chroma-data/
+chroma/
 

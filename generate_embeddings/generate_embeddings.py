@@ -27,7 +27,6 @@ class EmbeddingGenerator:
     def __init__(
         self,
         model_name: str = "all-mpnet-base-v2",
-        persist_directory: str = "../chroma-data",
         content_directory: str = "/home/scossar/zalgorithm/content",
         collection_name: str = "zalgorithm",
         development_mode: bool = False,
@@ -44,8 +43,7 @@ class EmbeddingGenerator:
         self.model = SentenceTransformer(model_name)
         self.development_mode = development_mode
         self.collection_name = collection_name
-        self.chroma_client = chromadb.PersistentClient(path=persist_directory)
-        # self.collection = self.chroma_client.get_or_create_collection(name="zalgorithm")
+        self.chroma_client = chromadb.PersistentClient()  # chroma will use the default `chroma` directory in the base of the project for persistence
         self.collection = self.get_or_create_collection(
             development_mode=development_mode, delete_collection=delete_collection
         )
@@ -60,6 +58,7 @@ class EmbeddingGenerator:
             except ValueError:
                 pass
 
+        # I'm not setting an embedding function here.
         return self.chroma_client.get_or_create_collection(name=self.collection_name)
 
     def _should_process_file(self, filepath: Path) -> bool:
@@ -148,14 +147,19 @@ class EmbeddingGenerator:
         metadatas = results["metadatas"][0]
         distances = results["distances"][0]
 
-        for chunk_id, doc, meta, dist in zip(ids, documents, metadatas, distances):
-            print(
-                f"{meta['title']}: {meta['anchor_link']} (distance: {dist:.3f})\ndocument: {doc}\n"
-            )
+        zipped = zip(ids, documents, metadatas, distances)
+
+        for _, document, metadata, distance in zipped:
+            print("\n", metadata)
+            print(distance, "\n")
+        # for chunk_id, doc, meta, dist in zip(ids, documents, metadatas, distances):
+        #     print(
+        #         f"{meta['title']}: {meta['anchor_link']} (distance: {dist:.3f})\ndocument: {doc}\n"
+        #     )
 
 
 embeddings_generator = EmbeddingGenerator(
     development_mode=True, delete_collection=False
 )
-# embeddings_generator.generate_embeddings()
+embeddings_generator.generate_embeddings()
 embeddings_generator.query_collection("How do I stop tracking a file with git?")
