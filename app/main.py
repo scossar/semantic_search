@@ -10,8 +10,6 @@ collection_name = "zalgorithm"
 
 chroma_host = os.getenv("CHROMA_HOST", "localhost")
 chroma_port = os.getenv("CHROMA_PORT", "8000")
-# chroma_client = chromadb.HttpClient(host=chroma_host, port=int(chroma_port))
-# chroma_client = chromadb.AsyncHttpClient(host=chroma_host, port=int(chroma_port))
 
 app.add_middleware(
     CORSMiddleware,
