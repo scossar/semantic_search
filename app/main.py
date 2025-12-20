@@ -1,7 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import chromadb
-import asyncio
 from pydantic import BaseModel
 import os
 
@@ -11,7 +10,8 @@ collection_name = "zalgorithm"
 
 chroma_host = os.getenv("CHROMA_HOST", "localhost")
 chroma_port = os.getenv("CHROMA_PORT", "8000")
-chroma_client = chromadb.HttpClient(host=chroma_host, port=int(chroma_port))
+# chroma_client = chromadb.HttpClient(host=chroma_host, port=int(chroma_port))
+# chroma_client = chromadb.AsyncHttpClient(host=chroma_host, port=int(chroma_port))
 
 app.add_middleware(
     CORSMiddleware,
@@ -32,24 +32,30 @@ class QueryResponse(BaseModel):
 
 
 @app.get("/")
-def read_root():
+async def read_root():
     return {"status": "It works."}
 
 
 @app.get("/collections")
-def list_collections():
+async def list_collections():
     try:
-        collections = chroma_client.list_collections()
+        chroma_client = await chromadb.AsyncHttpClient(
+            host=chroma_host, port=int(chroma_port)
+        )
+        collections = await chroma_client.list_collections()
         return {"collections": [col.name for col in collections]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/query", response_model=QueryResponse)
-def query_collection(request: QueryRequest):
+async def query_collection(request: QueryRequest):
     try:
-        collection = chroma_client.get_collection(name=collection_name)
-        results = collection.query(
+        chroma_client = await chromadb.AsyncHttpClient(
+            host=chroma_host, port=int(chroma_port)
+        )
+        collection = await chroma_client.get_collection(name=collection_name)
+        results = await collection.query(
             query_texts=[request.query], n_results=request.n_results
         )
 
