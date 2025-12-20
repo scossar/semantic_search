@@ -12,15 +12,6 @@ collection_name = "zalgorithm"
 chroma_host = os.getenv("CHROMA_HOST", "localhost")
 chroma_port = os.getenv("CHROMA_PORT", "8000")
 chroma_client = chromadb.HttpClient(host=chroma_host, port=int(chroma_port))
-collection = chroma_client.get_collection(name=collection_name)
-
-collection.add(
-    ids=["id1", "id2"],
-    documents=[
-        "This is a document about pineapple",
-        "This is a document about oranges",
-    ],
-)
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,16 +22,55 @@ app.add_middleware(
 )
 
 
-class SearchQuery(BaseModel):
+class QueryRequest(BaseModel):
     query: str
     n_results: int = 5
 
 
+class QueryResponse(BaseModel):
+    results: list[dict]
+
+
 @app.get("/")
 def read_root():
-    print("in the get method")
+    return {"status": "It works."}
+
+
+@app.get("/collections")
+def list_collections():
     try:
         collections = chroma_client.list_collections()
         return {"collections": [col.name for col in collections]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/query", response_model=QueryResponse)
+def query_collection(request: QueryRequest):
+    try:
+        collection = chroma_client.get_collection(name=collection_name)
+        results = collection.query(
+            query_texts=[request.query], n_results=request.n_results
+        )
+
+        formatted_results = []
+        for i in range(len(results["ids"][0])):
+            formatted_results.append(
+                {
+                    "id": results["ids"][0][i],
+                    "document": results["documents"][0][i]
+                    if results["documents"]
+                    else None,
+                    "metadata": results["metadatas"][0][i]
+                    if results["metadatas"]
+                    else None,
+                    "distance": results["distances"][0][i]
+                    if results["distances"]
+                    else None,
+                }
+            )
+
+        return {"results": formatted_results}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -2,6 +2,7 @@ import frontmatter
 from sentence_transformers import SentenceTransformer
 import chromadb
 from chromadb import Collection
+from chromadb.utils import embedding_functions
 import re
 import unidecode
 
@@ -21,6 +22,12 @@ postspath = "/home/scossar/zalgorithm/content"
 markdown = mistune.create_markdown(
     renderer=None, plugins=["footnotes", "math"]
 )  # Creates an AST renderer
+
+
+# NOTES ##########################################################################################################
+# see https://docs.trychroma.com/docs/embeddings/embedding-functions for details about custom embedding functions,
+# i.e, creating one for for "all-mpnet-base-v2"
+# ################################################################################################################
 
 
 class EmbeddingGenerator:
@@ -58,7 +65,6 @@ class EmbeddingGenerator:
             except ValueError:
                 pass
 
-        # I'm not setting an embedding function here.
         return self.chroma_client.get_or_create_collection(name=self.collection_name)
 
     def _should_process_file(self, filepath: Path) -> bool:
@@ -121,20 +127,24 @@ class EmbeddingGenerator:
             ids = section_id
 
             embedding_content = f"{headings}: {content}"
-            embeddings = self.model.encode(
-                embedding_content, convert_to_numpy=True, normalize_embeddings=True
-            )
+            # embeddings = self.model.encode(
+            #     embedding_content, convert_to_numpy=True, normalize_embeddings=True
+            # )
 
             self.collection.upsert(
-                embeddings=embeddings, ids=ids, metadatas=metadatas, documents=documents
+                ids=ids, metadatas=metadatas, documents=embedding_content
             )
+            # self.collection.upsert(
+            #     embeddings=embeddings, ids=ids, metadatas=metadatas, documents=documents
+            # )
 
     def query_collection(self, query: str):
-        query_embedding = self.model.encode(
-            query, convert_to_numpy=True, normalize_embeddings=True
-        )
+        # query_embedding = self.model.encode(
+        #     query, convert_to_numpy=True, normalize_embeddings=True
+        # )
         results = self.collection.query(
-            query_embeddings=[query_embedding.tolist()],
+            # query_embeddings=[query_embedding.tolist()],
+            query_texts=[query],
             n_results=7,
             include=["metadatas", "documents", "distances"],
         )
