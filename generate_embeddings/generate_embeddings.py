@@ -1,14 +1,16 @@
 import frontmatter
-from sentence_transformers import SentenceTransformer
+
+# from sentence_transformers import SentenceTransformer
 import chromadb
 from chromadb import Collection
-from chromadb.utils import embedding_functions
+
+# from chromadb.utils import embedding_functions
 import re
 import unidecode
 
 # import toml
-from frontmatter import Post
-from sentence_transformers.util import semantic_search
+# from frontmatter import Post
+# from sentence_transformers.util import semantic_search
 from postchunker import extract_sections
 from pathlib import Path
 from typing import cast, Any
@@ -33,11 +35,8 @@ markdown = mistune.create_markdown(
 class EmbeddingGenerator:
     def __init__(
         self,
-        model_name: str = "all-mpnet-base-v2",
         content_directory: str = "/home/scossar/zalgorithm/content",
         collection_name: str = "zalgorithm",
-        development_mode: bool = False,
-        delete_collection: bool = False,
     ):
         self.skip_dirs: set[str] = {
             "node_modules",
@@ -47,24 +46,12 @@ class EmbeddingGenerator:
             "venv",
             ".venv",
         }
-        self.model = SentenceTransformer(model_name)
-        self.development_mode = development_mode
         self.collection_name = collection_name
         self.chroma_client = chromadb.PersistentClient()  # chroma will use the default `chroma` directory in the base of the project for persistence
-        self.collection = self.get_or_create_collection(
-            development_mode=development_mode, delete_collection=delete_collection
-        )
+        self.collection = self.get_or_create_collection()
         self.content_directory = content_directory
 
-    def get_or_create_collection(
-        self, development_mode: bool, delete_collection: bool = False
-    ) -> Collection:
-        if development_mode and delete_collection:
-            try:
-                self.chroma_client.delete_collection(self.collection_name)
-            except ValueError:
-                pass
-
+    def get_or_create_collection(self) -> Collection:
         return self.chroma_client.get_or_create_collection(name=self.collection_name)
 
     def _should_process_file(self, filepath: Path) -> bool:
@@ -84,6 +71,7 @@ class EmbeddingGenerator:
         title = title.strip("-")  # strip leading/trailing hyphens
         return title
 
+    # TODO: check file_mtime to see if new embedding should be created
     def generate_embeddings(self):
         """
         Generate embeddings for blog content
@@ -123,27 +111,15 @@ class EmbeddingGenerator:
                 "anchor_link": anchor_link,
                 "updated_at": file_mtime,
             }
-            documents = content
             ids = section_id
-
             embedding_content = f"{headings}: {content}"
-            # embeddings = self.model.encode(
-            #     embedding_content, convert_to_numpy=True, normalize_embeddings=True
-            # )
 
             self.collection.upsert(
                 ids=ids, metadatas=metadatas, documents=embedding_content
             )
-            # self.collection.upsert(
-            #     embeddings=embeddings, ids=ids, metadatas=metadatas, documents=documents
-            # )
 
     def query_collection(self, query: str):
-        # query_embedding = self.model.encode(
-        #     query, convert_to_numpy=True, normalize_embeddings=True
-        # )
         results = self.collection.query(
-            # query_embeddings=[query_embedding.tolist()],
             query_texts=[query],
             n_results=7,
             include=["metadatas", "documents", "distances"],
@@ -162,14 +138,8 @@ class EmbeddingGenerator:
         for _, document, metadata, distance in zipped:
             print("\n", metadata)
             print(distance, "\n")
-        # for chunk_id, doc, meta, dist in zip(ids, documents, metadatas, distances):
-        #     print(
-        #         f"{meta['title']}: {meta['anchor_link']} (distance: {dist:.3f})\ndocument: {doc}\n"
-        #     )
 
 
-embeddings_generator = EmbeddingGenerator(
-    development_mode=True, delete_collection=False
-)
+embeddings_generator = EmbeddingGenerator()
 embeddings_generator.generate_embeddings()
 embeddings_generator.query_collection("How do I stop tracking a file with git?")
