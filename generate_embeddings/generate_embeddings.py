@@ -54,6 +54,8 @@ class EmbeddingGenerator:
     def get_or_create_collection(self) -> Collection:
         return self.chroma_client.get_or_create_collection(name=self.collection_name)
 
+    # todo: either respect 'draft' frontmatter boolean, or a 'private' boolean;
+    # also, this function needs access to frontmatter
     def _should_process_file(self, filepath: Path) -> bool:
         if any(part.startswith(".") for part in filepath.parts):
             return False
@@ -106,8 +108,12 @@ class EmbeddingGenerator:
             headings = " > ".join(section["headings"])
             content = " ".join(section["content"])
 
+            # quick hack (you don't want to use the parsed content here...)
+            html = mistune.html(content)
+
             metadatas = {
                 "title": title,
+                "html": html,
                 "anchor_link": anchor_link,
                 "updated_at": file_mtime,
             }

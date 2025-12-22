@@ -1,5 +1,5 @@
-from typing import Any, Dict, List
-# import re
+from typing import cast, Any, Dict, List
+
 
 __all__ = ["extract_sections"]
 
@@ -92,3 +92,85 @@ def extract_sections(
         sections.append(current_section)
 
     return sections
+
+
+def extract_sections_with_html(
+    ast: List[Dict[str, Any]], headings: List[str] = []
+) -> List[Dict[str, str]]:
+    sections = []
+    current_section = {
+        "headings": headings,
+        "heading_text": "",
+        "heading_level": None,
+        "content": [],
+        "tokens": [],
+    }
+
+    for token in ast:
+        if token["type"] == "heading":
+            #  append previous section to sections
+            if current_section["content"]:
+                sections.append(current_section)
+
+            # start a new section
+            heading_text = extract_text(token["children"])
+            heading_level = token["attrs"]["level"]
+
+            headings = headings[: heading_level - 1] + [heading_text]
+            current_section = {
+                "headings": headings,
+                "heading_text": heading_text,
+                "heading_level": heading_level,
+                "content": [],
+                "tokens": [],
+            }
+
+        else:
+            current_section["tokens"].append(token)
+            text = extract_text_from_node(token)
+            if text.strip():
+                current_section["content"].append(text)
+
+    # append the last section
+    if current_section["content"]:
+        sections.append(current_section)
+
+    return sections
+
+
+## tests
+import mistune
+
+# note: the solution for markdown -> ast -> html is here: https://github.com/lepture/mistune/issues/217
+from mistune.renderers.html import HTMLRenderer
+from mistune.core import BlockState
+
+# load a single file for testing
+file_content = ""
+with open(
+    "/home/scossar/zalgorithm/content/notes/logistic-map.md",
+    "r",
+) as file:
+    file_content = file.readlines()
+file_content = "".join(file_content)
+renderer = HTMLRenderer()
+
+markdown = mistune.create_markdown(renderer=None)  # Creates an AST renderer
+tokens = markdown(file_content)
+
+tokens = cast(list[dict[str, Any]], tokens)
+
+# Extracts and cleans text from each heading section for generating embeddings;
+# Now also returns the nodes for each section. The second argument is the file's title, as it's not included in the markdown
+sections = extract_sections_with_html(tokens, ["Logistic Map"])
+
+for section in sections:
+    section_tokens = section["tokens"]
+    section_tokens = cast(list[dict[str, Any]], section_tokens)
+    print(
+        "SECTION HEADING:",
+        section["heading_text"],
+        "HEADING LEVEL:",
+        section["heading_level"],
+    )
+    print(renderer(section_tokens, state=BlockState()))
