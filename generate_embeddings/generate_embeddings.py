@@ -36,6 +36,7 @@ class EmbeddingGenerator:
     def __init__(
         self,
         content_directory: str = "/home/scossar/zalgorithm/content",
+        html_directory: str = "/home/scossar/zalgorithm/public",
         collection_name: str = "zalgorithm",
     ):
         self.skip_dirs: set[str] = {
@@ -50,6 +51,7 @@ class EmbeddingGenerator:
         self.chroma_client = chromadb.PersistentClient()  # chroma will use the default `chroma` directory in the base of the project for persistence
         self.collection = self.get_or_create_collection()
         self.content_directory = content_directory
+        self.html_directory = html_directory
 
     def get_or_create_collection(self) -> Collection:
         return self.chroma_client.get_or_create_collection(name=self.collection_name)
@@ -83,7 +85,39 @@ class EmbeddingGenerator:
                 continue
             self.generate_embedding(path)
 
+    def get_html_path(self, md_path: Path) -> Path | None:
+        try:
+            rel_path = md_path.relative_to(self.content_directory)
+        except ValueError:  # if md_path isn't a subpath of content_directory
+            return None
+
+        parts = rel_path.with_suffix("").parts
+        html_path = Path(self.html_directory) / Path(*parts) / "index.html"
+
+        if html_path.exists():
+            return html_path
+        else:
+            print(f"No file exists at {html_path}")
+            return None
+
     def generate_embedding(self, filepath: Path):
+        """
+        Generate embedding for a single file
+        """
+        html_path = self.get_html_path(filepath)
+        post = frontmatter.load(str(filepath))
+        file_mtime = filepath.stat().st_mtime
+        title = str(post.get("title"))
+        stem = filepath.stem
+        post_id = post.get("id", None)
+        if not post_id:
+            print(
+                f"The post '{stem}' is missing an 'id' field. Skipping generating an embedding."
+            )
+        sections = extract_sections(str(html_path))
+        return sections
+
+    def generate_embedding_bak(self, filepath: Path):
         """
         Generate embedding for a single file
         """
@@ -146,6 +180,13 @@ class EmbeddingGenerator:
             print(distance, "\n")
 
 
+test_path = "/home/scossar/zalgorithm/content/notes/a-simple-document-for-testing.md"
 embeddings_generator = EmbeddingGenerator()
-embeddings_generator.generate_embeddings()
-embeddings_generator.query_collection("How do I stop tracking a file with git?")
+sections = embeddings_generator.generate_embedding(Path(test_path))
+
+for section in sections:
+    print(section["embedding_texts"])
+    print("\n")
+
+# embeddings_generator.generate_embeddings()
+# embeddings_generator.query_collection("How do I stop tracking a file with git?")

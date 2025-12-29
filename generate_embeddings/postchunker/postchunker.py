@@ -1,176 +1,108 @@
-from typing import cast, Any, Dict, List
-
+from lxml import etree, html
+from lxml.html import HtmlElement
+import copy
+from pathlib import Path
 
 __all__ = ["extract_sections"]
 
 
-def extract_text_from_node(node: Dict[str, Any]) -> str:
-    if node["type"] == "text":
-        return node["raw"]
-
-    if node["type"] == "image":
-        # TODO: look into this
-        return extract_text(node["children"])
-
-    if node["type"] == "block_math" or node["type"] == "inline_math":
-        return node.get("raw", "")
-
-    # this will remove the footnotes section, as long as it's properly structured
-    # TODO: check how brittle this is
-    if node["type"] == "footnote_item":
-        return ""
-
-    if node["type"] == "block_code":
-        # note that "attrs" is not set for "style": "indent" code blocks
-        lang = node.get("attrs", {}).get("info", "")
-        code = node["raw"]
-        if lang:
-            return f"\n\nCode ({lang}):\n{code}\n\n"
-        return f"\n\nCode:\n{code}\n\n"
-
-    if (
-        node["type"] == "softbreak"
-        or node["type"] == "linebreak"
-        or node["type"] == "blank_line"
-    ):
-        return " "
-
-    # a list is made up of list_items that contain block_text nodes
-    if node["type"] == "list":
-        items_text = extract_text(node["children"])
-        return f"\n{items_text}\n"
-
-    # list items
-    if node["type"] == "list_item":
-        item_text = extract_text(node["children"])
-        return f"- {item_text}\n"
-
-    # list_item text
-    if node["type"] == "block_text":
-        return extract_text(node["children"])
-
-    if node["type"] == "paragraph":
-        text = extract_text(node["children"])
-        return text + "\n\n"
-
-    if "children" in node:
-        return extract_text(node["children"])
-
-    return ""
-
-
-def extract_text(nodes: List[Dict[str, Any]]) -> str:
-    return "".join(extract_text_from_node(node) for node in nodes)
-
-
-def extract_sections(
-    ast: List[Dict[str, Any]], headings: List[str] = []
-) -> List[Dict[str, str]]:
-    sections = []
-    current_section = {"headings": headings, "content": []}
-
-    for node in ast:
-        if node["type"] == "heading":
-            #  append previous section to sections
-            if current_section["content"]:
-                sections.append(current_section)
-
-            # start a new section
-            heading_text = extract_text(node["children"])
-            level = node["attrs"]["level"]
-
-            headings = headings[: level - 1] + [heading_text]
-            current_section = {"headings": headings, "content": []}
-
-        else:
-            text = extract_text_from_node(node)
-            if text.strip():
-                current_section["content"].append(text)
-
-    # append the last section
-    if current_section["content"]:
-        sections.append(current_section)
-
-    return sections
-
-
-def extract_sections_with_html(
-    ast: List[Dict[str, Any]], headings: List[str] = []
-) -> List[Dict[str, str]]:
-    sections = []
-    current_section = {
-        "headings": headings,
-        "heading_text": "",
-        "heading_level": None,
-        "content": [],
-        "tokens": [],
-    }
-
-    for token in ast:
-        if token["type"] == "heading":
-            #  append previous section to sections
-            if current_section["content"]:
-                sections.append(current_section)
-
-            # start a new section
-            heading_text = extract_text(token["children"])
-            heading_level = token["attrs"]["level"]
-
-            headings = headings[: heading_level - 1] + [heading_text]
-            current_section = {
-                "headings": headings,
-                "heading_text": heading_text,
-                "heading_level": heading_level,
-                "content": [],
-                "tokens": [],
-            }
-
-        else:
-            current_section["tokens"].append(token)
-            text = extract_text_from_node(token)
-            if text.strip():
-                current_section["content"].append(text)
-
-    # append the last section
-    if current_section["content"]:
-        sections.append(current_section)
-
-    return sections
-
-
-## tests
-import mistune
-
-# note: the solution for markdown -> ast -> html is here: https://github.com/lepture/mistune/issues/217
-from mistune.renderers.html import HTMLRenderer
-from mistune.core import BlockState
-
-# load a single file for testing
-file_content = ""
-with open(
-    "/home/scossar/zalgorithm/content/notes/logistic-map.md",
-    "r",
-) as file:
-    file_content = file.readlines()
-file_content = "".join(file_content)
-renderer = HTMLRenderer()
-
-markdown = mistune.create_markdown(renderer=None)  # Creates an AST renderer
-tokens = markdown(file_content)
-
-tokens = cast(list[dict[str, Any]], tokens)
-
-# Extracts and cleans text from each heading section for generating embeddings;
-# Now also returns the nodes for each section. The second argument is the file's title, as it's not included in the markdown
-sections = extract_sections_with_html(tokens, ["Logistic Map"])
-
-for section in sections:
-    section_tokens = section["tokens"]
-    section_tokens = cast(list[dict[str, Any]], section_tokens)
-    print(
-        "SECTION HEADING:",
-        section["heading_text"],
-        "HEADING LEVEL:",
-        section["heading_level"],
+def serialize(fragment: HtmlElement, pretty_print: bool = False):
+    return html.tostring(
+        fragment,
+        pretty_print=pretty_print,
+        method="html",
+        encoding="unicode",
     )
-    print(renderer(section_tokens, state=BlockState()))
+
+
+def get_heading_level(tag: str) -> int:
+    heading_levels = {"h1": 0, "h2": 1, "h3": 2, "h4": 3, "h5": 4, "h6": 5}
+    return heading_levels[tag]
+
+
+def extract_sections(filename: str):
+    tree = html.parse(filename)
+    # using article as root and iterchildren is making assumptions about the HTML structure
+    # it works for my case though
+    root = tree.find(".//main")
+    heading_tags = ("h1", "h2", "h3", "h4", "h5", "h6")
+    sections = []
+    current_fragment = None
+    current_heading = None
+    current_embedding_texts = []
+    current_heading_path = []
+    file_href = str(Path(filename).parent)
+
+    for element in root.iter():
+        if element.tag in heading_tags:
+            if current_fragment is not None:
+                serialized_fragment = serialize(current_fragment, pretty_print=True)
+                serialized_heading = serialize(current_heading, pretty_print=True)
+                sections.append(
+                    {
+                        "html_fragment": serialized_fragment,
+                        "html_heading": serialized_heading,
+                        "embedding_texts": current_embedding_texts,
+                    }
+                )
+
+            heading_level = get_heading_level(element.tag)
+
+            heading_id = element.attrib.get("id")
+            if heading_id:
+                heading_href = f"{file_href}#{heading_id}"
+            else:
+                heading_href = file_href
+            heading_link = etree.Element("a", {"href": heading_href})
+            heading_link.text = element.text
+            current_heading = etree.Element(element.tag)
+            current_heading.append(heading_link)
+            current_heading_path = current_heading_path[:heading_level] + [element.text]
+            current_fragment = etree.Element("div", {"class": "article-fragment"})
+            current_embedding_texts = []
+
+        elif current_fragment is not None:
+            # deal with HTML comment elements
+            if not isinstance(element, HtmlElement):
+                new_element = copy.deepcopy(element)
+            else:
+                # create new element instead of copying element
+                new_element = etree.Element(element.tag, element.attrib)
+                new_element.text = element.text
+                new_element.tail = element.tail
+
+            current_fragment.append(new_element)
+            # sort of, but the code element's children still exist in the tree
+            # so will be re-iterated over in the `else:` block
+            if element.tag == "code":
+                lang = element.get("class")
+                code = f"({lang}):\n"
+                for line in element.iterchildren():
+                    line_text = "".join(line.itertext())
+                    code += line_text
+
+                current_embedding_texts.append(code)
+            else:
+                text = ""
+                for child in element.iterchildren():
+                    # getting there..., but so far away
+                    if not isinstance(child, HtmlElement):
+                        continue
+                    child_text = "".join(child.itertext())
+                    print("child_text:", child_text)
+                    text += child_text
+                current_embedding_texts.append(text)
+
+    if current_fragment is not None:
+        print("made it into the last part")
+        serialized_fragment = serialize(current_fragment, pretty_print=True)
+        serialized_heading = serialize(current_heading, pretty_print=True)
+        sections.append(
+            {
+                "html_fragment": serialized_fragment,
+                "html_heading": serialized_heading,
+                "embedding_texts": current_embedding_texts,
+            }
+        )
+
+    return sections
