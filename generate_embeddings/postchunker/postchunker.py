@@ -15,7 +15,7 @@ def serialize(fragment: HtmlElement, pretty_print: bool = False):
 
 
 def heading_link(original_heading: HtmlElement, filename: str):
-    href = str(Path(filename).parent)
+    href = str(Path(filename).parent)  # this is wrong!
     id = original_heading.attrib.get("id")
     if id:
         href = f"{href}#id"
@@ -52,6 +52,9 @@ def section_texts(section: HtmlElement, headings_path: list[str]):
                     line_text = "".join(line.itertext())
                     code += line_text
 
+                # something's off with this; checkout results for roger-bacon-as-magician;
+                # search "was roger bacon a magician?", also look at duplicate result issues with
+                # that query, and look at id's, i.e. "roger-bacon-as-magician#id"
                 if len(texts) and texts[-1].get("tag") == "p":
                     last_paragraph = texts[-1]["text"]
                     code = f"{last_paragraph}\n{code}"
