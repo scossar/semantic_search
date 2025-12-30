@@ -1,6 +1,5 @@
 from lxml import etree, html
 from lxml.html import HtmlElement
-import copy
 from pathlib import Path
 
 __all__ = ["extract_sections"]
@@ -34,20 +33,57 @@ def get_heading_level(tag: str) -> int:
     return heading_levels[tag]
 
 
-def extract_text_sections(section: HtmlElement):
-    print(serialize(section, pretty_print=True))
-    text = ""
-    for element in section.iter():
-        if element.tag == "code":
-            lang = element.get("class")
-            code = f"({lang}):\n"
-            for line in element.iterchildren():
-                print("in line")
-                line_text = "".join(line.itertext())
-                code += line_text
-            text += code
+def section_texts(section: HtmlElement, headings_path: list[str]):
+    section_heading = " > ".join(headings_path) + ": "
+    section_heading_length = len(section_heading)
+    texts = []
+    index = 0
+    for element in section.iterchildren():
+        if element.tag == "p":
+            text = "".join(element.itertext())
+            # remove unnecessary newline characters
+            text = " ".join(text.splitlines())
+            texts.append({"tag": "p", "text": text})
+        elif element.attrib.get("class") == "highlight":
+            code_element = element.find(".//code")
+            if code_element is not None:
+                lang = code_element.get("class")
+                code = f"({lang}):\n"
+                for line in code_element.iterchildren():
+                    line_text = "".join(line.itertext())
+                    code += line_text
 
-    return text
+                if index > 0 and texts[index - 1].get("tag") == "p":
+                    last_paragraph = texts[index - 1]["text"]
+                    code = f"{last_paragraph}\n{code}"
+                    texts[index - 1] = {"tag": "code", "text": code}
+                else:
+                    texts.append({"tag": "code", "text": code})
+
+        index += 1
+
+    sections = []
+    word_count = 0
+    current_section = ""
+    for index, entry in enumerate(texts):  # don't need index here
+        word_count += len(entry["text"].split(" "))
+        if (
+            word_count < (256 - section_heading_length) and entry["tag"] != "code"
+        ):  # 256
+            if current_section:
+                current_section += f"\n{entry['text']}"
+            else:
+                current_section = entry["text"]
+
+        else:
+            if current_section:
+                sections.append(section_heading + current_section)
+            current_section = entry["text"]
+            word_count = 0
+
+    sections.append(section_heading + current_section)
+
+    return sections
 
 
 def extract_sections(filename: str):
@@ -57,6 +93,7 @@ def extract_sections(filename: str):
     sections = []
     current_heading = None
     current_fragment = None
+    embeddings_text = []
     headings_path = []
 
     for child in root.iterchildren():
@@ -64,10 +101,12 @@ def extract_sections(filename: str):
             if current_fragment is not None:
                 html_fragment = serialize(current_fragment, pretty_print=True)
                 html_heading = serialize(current_heading, pretty_print=True)
+                embeddings_text = section_texts(current_fragment, headings_path)
                 sections.append(
                     {
                         "html_fragment": html_fragment,
                         "html_heading": html_heading,
+                        "embeddings_text": embeddings_text,
                     }
                 )
 
@@ -83,88 +122,12 @@ def extract_sections(filename: str):
     if current_fragment is not None:
         html_fragment = serialize(current_fragment, pretty_print=True)
         html_heading = serialize(current_heading, pretty_print=True)
+        embeddings_text = section_texts(current_fragment, headings_path)
         sections.append(
             {
                 "html_fragment": html_fragment,
                 "html_heading": html_heading,
+                "embeddings_text": embeddings_text,
             }
         )
-    return sections
-
-
-def extract_sections_bak(filename: str):
-    tree = html.parse(filename)
-    # using article as root and iterchildren is making assumptions about the HTML structure
-    # it works for my case though
-    root = tree.find(".//main")
-    heading_tags = ("h1", "h2", "h3", "h4", "h5", "h6")
-    sections = []
-    current_fragment = None
-    current_heading = None
-    # current_embedding_texts = []
-    current_heading_path = []
-    file_href = str(Path(filename).parent)
-
-    for child in root.iterdescendants():
-        print("child.tag", child.tag)
-        for element in child.iter():
-            if element.tag in heading_tags:
-                if current_fragment is not None:
-                    serialized_fragment = serialize(current_fragment, pretty_print=True)
-                    print("serialized fragment:\n", serialized_fragment)
-                    serialized_heading = serialize(current_heading, pretty_print=True)
-                    # embedding_texts = extract_text_sections(current_fragment)
-                    sections.append(
-                        {
-                            "html_fragment": serialized_fragment,
-                            "html_heading": serialized_heading,
-                            # "embedding_texts": embedding_texts,
-                        }
-                    )
-
-                heading_level = get_heading_level(element.tag)
-
-                heading_id = element.attrib.get("id")
-                if heading_id:
-                    heading_href = f"{file_href}#{heading_id}"
-                else:
-                    heading_href = file_href
-                heading_link = etree.Element("a", {"href": heading_href})
-                heading_link.text = element.text
-                current_heading = etree.Element(element.tag)
-                current_heading.append(heading_link)
-                current_heading_path = current_heading_path[:heading_level] + [
-                    element.text
-                ]
-                current_fragment = etree.Element("div", {"class": "article-fragment"})
-
-            elif current_fragment is not None:
-                # deal with HTML comment elements
-                if not isinstance(element, HtmlElement):
-                    new_element = copy.deepcopy(element)
-                else:
-                    # create new element instead of copying element
-                    # new_element = etree.Element(element.tag, element.attrib)
-                    # new_element.text = element.text
-                    # new_element.tail = element.tail
-                    new_element = copy.deepcopy(element)
-
-                current_fragment.append(new_element)
-                for child in element.iterchildren():
-                    print("remove tag:", child.tag)
-                    element.remove(child)
-
-    if current_fragment is not None:
-        serialized_fragment = serialize(current_fragment, pretty_print=True)
-        print("serialized fragment:\n", serialized_fragment)
-        serialized_heading = serialize(current_heading, pretty_print=True)
-        # embedding_texts = extract_text_sections(current_fragment)
-        sections.append(
-            {
-                "html_fragment": serialized_fragment,
-                "html_heading": serialized_heading,
-                # "embedding_texts": embedding_texts,
-            }
-        )
-
     return sections
