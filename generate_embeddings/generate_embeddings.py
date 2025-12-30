@@ -39,7 +39,7 @@ class EmbeddingGenerator:
         html_directory: str = "/home/scossar/zalgorithm/public",
         collection_name: str = "zalgorithm",
     ):
-        self.skip_dirs: set[str] = {
+        self.skip_dirs: set[str] = {  # these are mostly wrong
             "node_modules",
             ".git",
             ".obsidian",
@@ -61,9 +61,13 @@ class EmbeddingGenerator:
     def _should_process_file(self, filepath: Path) -> bool:
         if any(part.startswith(".") for part in filepath.parts):
             return False
+        if any(part.startswith("_") for part in filepath.parts):
+            return False
         if any(skip_dir in filepath.parts for skip_dir in self.skip_dirs):
             return False
         if filepath.suffix.lower() not in (".md", ".markdown"):
+            return False
+        if filepath.name == "search.md":
             return False
         return True
 
@@ -89,9 +93,15 @@ class EmbeddingGenerator:
         try:
             rel_path = md_path.relative_to(self.content_directory)
         except ValueError:  # if md_path isn't a subpath of content_directory
+            print(
+                f"{md_path} isn't relative to the content directory ({self.content_directory})"
+            )
             return None
 
         parts = rel_path.with_suffix("").parts
+        parts = tuple(
+            s.lower() for s in parts
+        )  # it's possible to end up with an uppercase md filename
         html_path = Path(self.html_directory) / Path(*parts) / "index.html"
 
         if html_path.exists():
@@ -105,58 +115,41 @@ class EmbeddingGenerator:
         Generate embedding for a single file
         """
         html_path = self.get_html_path(filepath)
+        if not html_path:
+            return None
+        print(f"Generating embedding for {str(html_path)}")
         post = frontmatter.load(str(filepath))
         file_mtime = filepath.stat().st_mtime
         title = str(post.get("title"))
-        stem = filepath.stem
         post_id = post.get("id", None)
         if not post_id:
             print(
-                f"The post '{stem}' is missing an 'id' field. Skipping generating an embedding."
+                f"The post '{title}' is missing an 'id' field. Skipping generating an embedding."
             )
         sections = extract_sections(str(html_path))
-        return sections
 
-    def generate_embedding_bak(self, filepath: Path):
-        """
-        Generate embedding for a single file
-        """
-        post = frontmatter.load(str(filepath))
-        file_mtime = filepath.stat().st_mtime
-        title = str(post.get("title"))
-        stem = filepath.stem
-        post_id = post.get("id", None)
-        if not post_id:
-            print(
-                f"The post '{stem}' is missing an 'id' field. Skipping generating an embedding."
-            )
-        nodes = markdown(post.content)
-        nodes = cast(list[dict[str, Any]], nodes)
-        sections = extract_sections(nodes, headings=[title])
         for section in sections:
-            heading_slug = self._slugify(section["headings"][-1])
-            section_id = f"{post_id}-{heading_slug}"
-            relative_path = filepath.relative_to(self.content_directory).with_suffix("")
-            anchor_link = f"/{relative_path}#{heading_slug}"
+            html_fragment = section["html_fragment"]
+            html_heading = section["html_heading"]
+            page_heading = section["headings_path"][0]
+            section_heading = section["headings_path"][-1]
+            section_heading_slug = self._slugify(section_heading)
+            embeddings_text = section["embeddings_text"]
 
-            headings = " > ".join(section["headings"])
-            content = " ".join(section["content"])
+            for index, text in enumerate(embeddings_text):
+                embedding_id = f"{post_id}-{index}-{section_heading_slug}"
 
-            # quick hack (you don't want to use the parsed content here...)
-            html = mistune.html(content)
+                metadatas = {
+                    "page_title": page_heading,
+                    "section_heading": section_heading,
+                    "html_heading": html_heading,
+                    "html_fragment": html_fragment,
+                    "updated_at": file_mtime,
+                }
 
-            metadatas = {
-                "title": title,
-                "html": html,
-                "anchor_link": anchor_link,
-                "updated_at": file_mtime,
-            }
-            ids = section_id
-            embedding_content = f"{headings}: {content}"
-
-            self.collection.upsert(
-                ids=ids, metadatas=metadatas, documents=embedding_content
-            )
+                self.collection.upsert(
+                    ids=embedding_id, metadatas=metadatas, documents=text
+                )
 
     def query_collection(self, query: str):
         results = self.collection.query(
@@ -181,13 +174,8 @@ class EmbeddingGenerator:
 
 
 # test_path = "/home/scossar/zalgorithm/content/notes/a-simple-document-for-testing.md"
-test_path = "/home/scossar/zalgorithm/content/notes/notes-on-cognitive-and-morphological-patterns.md"
+# test_path = "/home/scossar/zalgorithm/content/notes/notes-on-cognitive-and-morphological-patterns.md"
 embeddings_generator = EmbeddingGenerator()
-sections = embeddings_generator.generate_embedding(Path(test_path))
-
-for section in sections:
-    print(section)
-    print("\n")
-
-# embeddings_generator.generate_embeddings()
+# embeddings_generator.generate_embedding(Path(test_path))
+embeddings_generator.generate_embeddings()
 # embeddings_generator.query_collection("How do I stop tracking a file with git?")

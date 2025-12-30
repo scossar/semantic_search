@@ -103,6 +103,7 @@ def extract_sections(filename: str):
                     {
                         "html_fragment": html_fragment,
                         "html_heading": html_heading,
+                        "headings_path": headings_path,
                         "embeddings_text": embeddings_text,
                     }
                 )
@@ -124,6 +125,7 @@ def extract_sections(filename: str):
             {
                 "html_fragment": html_fragment,
                 "html_heading": html_heading,
+                "headings_path": headings_path,
                 "embeddings_text": embeddings_text,
             }
         )
