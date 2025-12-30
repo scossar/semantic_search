@@ -184,9 +184,9 @@ test_path = "/home/scossar/zalgorithm/content/notes/a-simple-document-for-testin
 embeddings_generator = EmbeddingGenerator()
 sections = embeddings_generator.generate_embedding(Path(test_path))
 
-for section in sections:
-    print(section["embedding_texts"])
-    print("\n")
+# for section in sections:
+#     print(section)
+#     print("\n")
 
 # embeddings_generator.generate_embeddings()
 # embeddings_generator.query_collection("How do I stop tracking a file with git?")
