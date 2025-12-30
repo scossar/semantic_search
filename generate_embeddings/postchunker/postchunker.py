@@ -96,8 +96,8 @@ def extract_sections(filename: str):
     for child in root.iterchildren():
         if child.tag in heading_tags:
             if current_fragment is not None:
-                html_fragment = serialize(current_fragment, pretty_print=True)
-                html_heading = serialize(current_heading, pretty_print=True)
+                html_fragment = serialize(current_fragment, pretty_print=False)
+                html_heading = serialize(current_heading, pretty_print=False)
                 embeddings_text = section_texts(current_fragment, headings_path)
                 sections.append(
                     {
@@ -118,8 +118,8 @@ def extract_sections(filename: str):
             current_fragment.append(child)
 
     if current_fragment is not None:
-        html_fragment = serialize(current_fragment, pretty_print=True)
-        html_heading = serialize(current_heading, pretty_print=True)
+        html_fragment = serialize(current_fragment, pretty_print=False)
+        html_heading = serialize(current_heading, pretty_print=False)
         embeddings_text = section_texts(current_fragment, headings_path)
         sections.append(
             {

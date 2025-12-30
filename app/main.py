@@ -1,4 +1,6 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Form, HTTPException
+from fastapi.responses import HTMLResponse
+from typing import Annotated
 from fastapi.middleware.cors import CORSMiddleware
 import chromadb
 from pydantic import BaseModel
@@ -46,35 +48,50 @@ async def list_collections():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/query", response_model=QueryResponse)
-async def query_collection(request: QueryRequest):
+@app.post("/query", response_class=HTMLResponse)
+async def query_collection(query: Annotated[str, Form()]):
+    print("request received")
+    print(query)
     try:
         chroma_client = await chromadb.AsyncHttpClient(
             host=chroma_host, port=int(chroma_port)
         )
         collection = await chroma_client.get_collection(name=collection_name)
-        results = await collection.query(
-            query_texts=[request.query], n_results=request.n_results
-        )
+        results = await collection.query(query_texts=[query], n_results=5)
 
-        formatted_results = []
+        # formatted_results = []
+        # for i in range(len(results["ids"][0])):
+        #     formatted_results.append(
+        #         {
+        #             "id": results["ids"][0][i],
+        #             "document": results["documents"][0][i]
+        #             if results["documents"]
+        #             else None,
+        #             "metadata": results["metadatas"][0][i]
+        #             if results["metadatas"]
+        #             else None,
+        #             "distance": results["distances"][0][i]
+        #             if results["distances"]
+        #             else None,
+        #         }
+        #     )
+
+        html = ""
         for i in range(len(results["ids"][0])):
-            formatted_results.append(
-                {
-                    "id": results["ids"][0][i],
-                    "document": results["documents"][0][i]
-                    if results["documents"]
-                    else None,
-                    "metadata": results["metadatas"][0][i]
-                    if results["metadatas"]
-                    else None,
-                    "distance": results["distances"][0][i]
-                    if results["distances"]
-                    else None,
-                }
+            heading = (
+                results["metadatas"][0][i]["html_heading"]
+                if results["metadatas"]
+                else ""
             )
+            fragment = (
+                results["metadatas"][0][i]["html_fragment"]
+                if results["metadatas"]
+                else ""
+            )
+            html += heading
+            html += fragment
 
-        return {"results": formatted_results}
+        return html
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
