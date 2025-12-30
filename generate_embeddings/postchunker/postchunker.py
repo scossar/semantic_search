@@ -37,7 +37,6 @@ def section_texts(section: HtmlElement, headings_path: list[str]):
     section_heading = " > ".join(headings_path) + ": "
     section_heading_length = len(section_heading)
     texts = []
-    index = 0
     for element in section.iterchildren():
         if element.tag == "p":
             text = "".join(element.itertext())
@@ -53,19 +52,17 @@ def section_texts(section: HtmlElement, headings_path: list[str]):
                     line_text = "".join(line.itertext())
                     code += line_text
 
-                if index > 0 and texts[index - 1].get("tag") == "p":
-                    last_paragraph = texts[index - 1]["text"]
+                if len(texts) and texts[-1].get("tag") == "p":
+                    last_paragraph = texts[-1]["text"]
                     code = f"{last_paragraph}\n{code}"
-                    texts[index - 1] = {"tag": "code", "text": code}
+                    texts[-1] = {"tag": "code", "text": code}
                 else:
                     texts.append({"tag": "code", "text": code})
-
-        index += 1
 
     sections = []
     word_count = 0
     current_section = ""
-    for index, entry in enumerate(texts):  # don't need index here
+    for entry in texts:
         word_count += len(entry["text"].split(" "))
         if (
             word_count < (256 - section_heading_length) and entry["tag"] != "code"
