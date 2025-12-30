@@ -18,7 +18,7 @@ def heading_link(original_heading: HtmlElement, filename: str):
     href = str(Path(filename).parent)  # this is wrong!
     id = original_heading.attrib.get("id")
     if id:
-        href = f"{href}#id"
+        href = f"{href}#{id}"
 
     anchor = etree.Element("a", {"href": href})
     anchor.text = original_heading.text
