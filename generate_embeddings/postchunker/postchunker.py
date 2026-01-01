@@ -14,15 +14,17 @@ def serialize(fragment: HtmlElement, pretty_print: bool = False):
     )
 
 
-def heading_link(original_heading: HtmlElement, rel_path: str):
+def heading_link(
+    original_heading: HtmlElement, headings_path: list[str], rel_path: str
+):
     href = f"/{rel_path}"
     id = original_heading.attrib.get("id")
     if id:
         href = f"{href}#{id}"
 
     anchor = etree.Element("a", {"href": href})
-    anchor.text = original_heading.text
-    heading = etree.Element(original_heading.tag)
+    anchor.text = " > ".join(headings_path)
+    heading = etree.Element("h2")
     heading.append(anchor)
 
     return heading
@@ -133,11 +135,10 @@ def extract_sections(filename: str, rel_path: str):
                     }
                 )
 
-            current_heading = heading_link(child, rel_path)
             current_fragment = etree.Element("div", {"class": "article-fragment"})
-
             heading_level = get_heading_level(child.tag)
             headings_path = headings_path[:heading_level] + [child.text]
+            current_heading = heading_link(child, headings_path, rel_path)
 
         elif current_fragment is not None:
             if not exclude_element(child):
