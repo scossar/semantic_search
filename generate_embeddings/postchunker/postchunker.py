@@ -49,6 +49,17 @@ def exclude_element(element: HtmlElement) -> bool:
     return False
 
 
+# TODO: clean up; the element isn't an HtmlElement, it's an etree.Element?
+def fix_relative_links(element: HtmlElement, rel_path: str):
+    for e in element.iter():
+        if e.tag == "a":
+            href = e.attrib["href"]
+            if href and href.startswith("#"):
+                e.attrib["href"] = f"/{rel_path}{href}"
+
+    return element
+
+
 def has_text(element: HtmlElement) -> bool:
     text = "".join(element.itertext()).strip()
     if text:
@@ -123,6 +134,7 @@ def extract_sections(filename: str, rel_path: str):
     for child in root.iterchildren():
         if child.tag in heading_tags:
             if current_fragment is not None and has_text(current_fragment):
+                current_fragment = fix_relative_links(current_fragment, rel_path)
                 html_fragment = serialize(current_fragment, pretty_print=False)
                 html_heading = serialize(current_heading, pretty_print=False)
                 embeddings_text = section_texts(current_fragment, headings_path)
