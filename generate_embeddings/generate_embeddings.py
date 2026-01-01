@@ -193,8 +193,9 @@ class EmbeddingGenerator:
 
 
 # test_path = "/home/scossar/zalgorithm/content/notes/a-simple-document-for-testing.md"
-test_path = "/home/scossar/zalgorithm/content/notes/notes-on-cognitive-and-morphological-patterns.md"
+test_path = "/home/scossar/zalgorithm/content/notes/roger-bacon-as-magician.md"
+# test_path = "/home/scossar/zalgorithm/content/notes/notes-on-cognitive-and-morphological-patterns.md"
 embeddings_generator = EmbeddingGenerator()
-embeddings_generator.generate_embedding(Path(test_path))
-# embeddings_generator.generate_embeddings()
+# embeddings_generator.generate_embedding(Path(test_path))
+embeddings_generator.generate_embeddings()
 # embeddings_generator.query_collection("How do I stop tracking a file with git?")

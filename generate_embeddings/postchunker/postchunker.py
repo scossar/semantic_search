@@ -33,6 +33,28 @@ def get_heading_level(tag: str) -> int:
     return heading_levels[tag]
 
 
+def exclude_element(element: HtmlElement) -> bool:
+    if element.get("class") == "footnotes":
+        return True
+
+    if element.get("class") == "terms":
+        return True
+
+    # do something better with this
+    if element.tag == "time":
+        return True
+
+    return False
+
+
+def has_text(element: HtmlElement) -> bool:
+    text = "".join(element.itertext()).strip()
+    if text:
+        return True
+    else:
+        return False
+
+
 def section_texts(section: HtmlElement, headings_path: list[str]):
     section_heading = " > ".join(headings_path) + ": "
     section_heading_length = len(section_heading)
@@ -98,7 +120,7 @@ def extract_sections(filename: str, rel_path: str):
 
     for child in root.iterchildren():
         if child.tag in heading_tags:
-            if current_fragment is not None:
+            if current_fragment is not None and has_text(current_fragment):
                 html_fragment = serialize(current_fragment, pretty_print=False)
                 html_heading = serialize(current_heading, pretty_print=False)
                 embeddings_text = section_texts(current_fragment, headings_path)
@@ -118,9 +140,10 @@ def extract_sections(filename: str, rel_path: str):
             headings_path = headings_path[:heading_level] + [child.text]
 
         elif current_fragment is not None:
-            current_fragment.append(child)
+            if not exclude_element(child):
+                current_fragment.append(child)
 
-    if current_fragment is not None:
+    if current_fragment is not None and has_text(current_fragment):
         html_fragment = serialize(current_fragment, pretty_print=False)
         html_heading = serialize(current_heading, pretty_print=False)
         embeddings_text = section_texts(current_fragment, headings_path)
