@@ -79,7 +79,21 @@ class EmbeddingGenerator:
         title = title.strip("-")  # strip leading/trailing hyphens
         return title
 
-    # TODO: check file_mtime to see if new embedding should be created
+    def _is_up_to_date(self, file_id: str, file_mtime: float) -> bool:
+        existing = self.collection.get(ids=file_id, limit=1)
+
+        if not existing["ids"] or not existing["metadatas"]:
+            return False
+
+        last_updated_at = existing["metadatas"][0].get("updated_at", 0)
+
+        if not isinstance(last_updated_at, (int, float)):
+            return False  # invalid timestamp
+
+        return (
+            last_updated_at + 1.0 >= file_mtime
+        )  # 1 second tolerance for rounding errors
+
     def generate_embeddings(self):
         """
         Generate embeddings for blog content
@@ -110,12 +124,12 @@ class EmbeddingGenerator:
             print(f"No file exists at {html_path}")
             return None, None
 
-    def generate_embedding(self, filepath: Path):
+    def generate_embedding(self, filepath: Path) -> None:
         html_path, relative_path = self.get_file_paths(filepath)
         if not html_path or not relative_path:
             return None
 
-        print(f"Generating embedding for {relative_path}")
+        print(f"Processing {relative_path}")
 
         post = frontmatter.load(str(filepath))
         file_mtime = filepath.stat().st_mtime
@@ -125,6 +139,7 @@ class EmbeddingGenerator:
             print(
                 f"The post '{title}' is missing an 'id' field. Skipping generating an embedding."
             )
+            return None
 
         sections = extract_sections(html_path, relative_path)
 
@@ -138,6 +153,10 @@ class EmbeddingGenerator:
 
             for index, text in enumerate(embeddings_text):
                 embedding_id = f"{post_id}-{index}-{section_heading_slug}"
+                # TODO: uncomment after testing
+                # if self._is_up_to_date(embedding_id, file_mtime):
+                #     print(f"Not indexing {title}. Up to date.")
+                #     return None
 
                 metadatas = {
                     "page_title": page_heading,
@@ -174,8 +193,8 @@ class EmbeddingGenerator:
 
 
 # test_path = "/home/scossar/zalgorithm/content/notes/a-simple-document-for-testing.md"
-# test_path = "/home/scossar/zalgorithm/content/notes/notes-on-cognitive-and-morphological-patterns.md"
+test_path = "/home/scossar/zalgorithm/content/notes/notes-on-cognitive-and-morphological-patterns.md"
 embeddings_generator = EmbeddingGenerator()
-# embeddings_generator.generate_embedding(Path(test_path))
-embeddings_generator.generate_embeddings()
+embeddings_generator.generate_embedding(Path(test_path))
+# embeddings_generator.generate_embeddings()
 # embeddings_generator.query_collection("How do I stop tracking a file with git?")
