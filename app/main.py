@@ -59,39 +59,26 @@ async def query_collection(query: Annotated[str, Form()]):
         collection = await chroma_client.get_collection(name=collection_name)
         results = await collection.query(query_texts=[query], n_results=5)
 
-        # formatted_results = []
-        # for i in range(len(results["ids"][0])):
-        #     formatted_results.append(
-        #         {
-        #             "id": results["ids"][0][i],
-        #             "document": results["documents"][0][i]
-        #             if results["documents"]
-        #             else None,
-        #             "metadata": results["metadatas"][0][i]
-        #             if results["metadatas"]
-        #             else None,
-        #             "distance": results["distances"][0][i]
-        #             if results["distances"]
-        #             else None,
-        #         }
-        #     )
+        seen_sections = set()
+        html_parts = []
 
-        html = ""
+        if not results["metadatas"]:
+            return ""  # do better
+
         for i in range(len(results["ids"][0])):
-            heading = (
-                results["metadatas"][0][i]["html_heading"]
-                if results["metadatas"]
-                else ""
-            )
-            fragment = (
-                results["metadatas"][0][i]["html_fragment"]
-                if results["metadatas"]
-                else ""
-            )
-            html += heading
-            html += fragment
+            metadata = results["metadatas"][0][i]
+            section_heading = metadata.get("section_heading", "")
+            if section_heading in seen_sections:
+                continue
 
-        return html
+            seen_sections.add(section_heading)
+
+            heading = metadata.get("html_heading", "")
+            fragment = metadata.get("html_fragment", "")
+            html_parts.append(str(heading) + str(fragment))
+
+        response_html = "".join(html_parts)
+        return response_html
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
