@@ -14,8 +14,8 @@ def serialize(fragment: HtmlElement, pretty_print: bool = False):
     )
 
 
-def heading_link(original_heading: HtmlElement, filename: str):
-    href = str(Path(filename).parent)  # this is wrong!
+def heading_link(original_heading: HtmlElement, rel_path: str):
+    href = f"/{rel_path}"
     id = original_heading.attrib.get("id")
     if id:
         href = f"{href}#{id}"
@@ -86,7 +86,7 @@ def section_texts(section: HtmlElement, headings_path: list[str]):
     return sections
 
 
-def extract_sections(filename: str):
+def extract_sections(filename: str, rel_path: str):
     tree = html.parse(filename)
     root = tree.find(".//article")
     heading_tags = ("h1", "h2", "h3", "h4", "h5", "h6")
@@ -111,7 +111,7 @@ def extract_sections(filename: str):
                     }
                 )
 
-            current_heading = heading_link(child, filename)
+            current_heading = heading_link(child, rel_path)
             current_fragment = etree.Element("div", {"class": "article-fragment"})
 
             heading_level = get_heading_level(child.tag)

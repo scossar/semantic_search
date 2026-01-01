@@ -89,37 +89,34 @@ class EmbeddingGenerator:
                 continue
             self.generate_embedding(path)
 
-    def get_html_path(self, md_path: Path) -> Path | None:
+    def get_file_paths(self, md_path: Path) -> tuple[str, str] | tuple[None, None]:
         try:
             rel_path = md_path.relative_to(self.content_directory)
         except ValueError:  # if md_path isn't a subpath of content_directory
             print(
                 f"{md_path} isn't relative to the content directory ({self.content_directory})"
             )
-            return None
+            return None, None
 
-        print("rel_path", rel_path)
-
-        parts = rel_path.with_suffix("").parts
-        parts = tuple(
-            s.lower() for s in parts
+        rel_path_parts = rel_path.with_suffix("").parts
+        rel_path_parts = tuple(
+            s.lower() for s in rel_path_parts
         )  # it's possible to end up with an uppercase md filename
-        html_path = Path(self.html_directory) / Path(*parts) / "index.html"
+        html_path = Path(self.html_directory) / Path(*rel_path_parts) / "index.html"
 
         if html_path.exists():
-            return html_path
+            return str(html_path), str(Path(*rel_path_parts))
         else:
             print(f"No file exists at {html_path}")
-            return None
+            return None, None
 
     def generate_embedding(self, filepath: Path):
-        """
-        Generate embedding for a single file
-        """
-        html_path = self.get_html_path(filepath)
-        if not html_path:
+        html_path, relative_path = self.get_file_paths(filepath)
+        if not html_path or not relative_path:
             return None
-        print(f"Generating embedding for {str(html_path)}")
+
+        print(f"Generating embedding for {relative_path}")
+
         post = frontmatter.load(str(filepath))
         file_mtime = filepath.stat().st_mtime
         title = str(post.get("title"))
@@ -128,7 +125,8 @@ class EmbeddingGenerator:
             print(
                 f"The post '{title}' is missing an 'id' field. Skipping generating an embedding."
             )
-        sections = extract_sections(str(html_path))
+
+        sections = extract_sections(html_path, relative_path)
 
         for section in sections:
             html_fragment = section["html_fragment"]
@@ -176,8 +174,8 @@ class EmbeddingGenerator:
 
 
 # test_path = "/home/scossar/zalgorithm/content/notes/a-simple-document-for-testing.md"
-test_path = "/home/scossar/zalgorithm/content/notes/notes-on-cognitive-and-morphological-patterns.md"
+# test_path = "/home/scossar/zalgorithm/content/notes/notes-on-cognitive-and-morphological-patterns.md"
 embeddings_generator = EmbeddingGenerator()
-embeddings_generator.generate_embedding(Path(test_path))
-# embeddings_generator.generate_embeddings()
+# embeddings_generator.generate_embedding(Path(test_path))
+embeddings_generator.generate_embeddings()
 # embeddings_generator.query_collection("How do I stop tracking a file with git?")
