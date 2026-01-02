@@ -1,19 +1,12 @@
 import frontmatter
-
-# from sentence_transformers import SentenceTransformer
 import chromadb
 from chromadb import Collection
-
-# from chromadb.utils import embedding_functions
 import re
 import unidecode
 
-# import toml
-# from frontmatter import Post
-# from sentence_transformers.util import semantic_search
 from postchunker import extract_sections
 from pathlib import Path
-from typing import cast, Any
+from typing import cast
 import mistune
 
 postspath = "/home/scossar/zalgorithm/content"
@@ -21,9 +14,9 @@ postspath = "/home/scossar/zalgorithm/content"
 # See https://github.com/lepture/mistune/blob/4adac1c6e7e14e7deeb1bf6c6cd8c6816f537691/docs/renderers.rst#L56
 # for the list of available methods (list of nodes that will be generated)
 # list of available plugins: https://mistune.lepture.com/en/latest/plugins.html
-markdown = mistune.create_markdown(
-    renderer=None, plugins=["footnotes", "math"]
-)  # Creates an AST renderer
+# markdown = mistune.create_markdown(
+#     renderer=None, plugins=["footnotes", "math"]
+# )  # Creates an AST renderer
 
 
 # NOTES ##########################################################################################################
@@ -56,8 +49,8 @@ class EmbeddingGenerator:
     def get_or_create_collection(self) -> Collection:
         return self.chroma_client.get_or_create_collection(name=self.collection_name)
 
-    # todo: either respect 'draft' frontmatter boolean, or a 'private' boolean;
-    # also, this function needs access to frontmatter
+    # TODO: this is kind of chaotic; remember it's passed markdown files, not html files.
+    # either respect 'draft' frontmatter boolean, or a 'private' boolean;
     def _should_process_file(self, filepath: Path) -> bool:
         if any(part.startswith(".") for part in filepath.parts):
             return False
@@ -193,9 +186,9 @@ class EmbeddingGenerator:
 
 
 # test_path = "/home/scossar/zalgorithm/content/notes/a-simple-document-for-testing.md"
-test_path = "/home/scossar/zalgorithm/content/notes/roger-bacon-as-magician.md"
+# test_path = "/home/scossar/zalgorithm/content/notes/roger-bacon-as-magician.md"
 # test_path = "/home/scossar/zalgorithm/content/notes/notes-on-cognitive-and-morphological-patterns.md"
 embeddings_generator = EmbeddingGenerator()
-embeddings_generator.generate_embedding(Path(test_path))
-# embeddings_generator.generate_embeddings()
+# embeddings_generator.generate_embedding(Path(test_path))
+embeddings_generator.generate_embeddings()
 # embeddings_generator.query_collection("How do I stop tracking a file with git?")

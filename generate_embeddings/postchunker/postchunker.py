@@ -1,6 +1,5 @@
 from lxml import etree, html
 from lxml.html import HtmlElement
-from pathlib import Path
 
 __all__ = ["extract_sections"]
 

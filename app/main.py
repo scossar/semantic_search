@@ -50,8 +50,6 @@ async def list_collections():
 
 @app.post("/query", response_class=HTMLResponse)
 async def query_collection(query: Annotated[str, Form()]):
-    print("request received")
-    print(query)
     try:
         chroma_client = await chromadb.AsyncHttpClient(
             host=chroma_host, port=int(chroma_port)
@@ -63,7 +61,7 @@ async def query_collection(query: Annotated[str, Form()]):
         html_parts = []
 
         if not results["metadatas"]:
-            return ""  # do better
+            return ""  # This is mostly to keep the type checker happy, but probably needs a better response.
 
         for i in range(len(results["ids"][0])):
             metadata = results["metadatas"][0][i]
